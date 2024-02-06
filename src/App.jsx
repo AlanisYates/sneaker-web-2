@@ -1,6 +1,6 @@
 import { Route, Routes } from 'react-router-dom';
 import './App.css';
-import { useContext } from 'react';
+import { useContext, useEffect } from 'react';
 import { AuthContext } from './context/authContext';
 import { CssBaseline, ThemeProvider } from '@mui/material';
 import { useMode, ColorModeContext } from './theme/theme';
@@ -17,7 +17,7 @@ function App() {
         <div className="App">
           <div className="content-container">
             <Routes>
-              <Route path="/HomePage" element={<HomePage />} />
+              <Route path="/" element={<HomePage />} />
             </Routes>
           </div>
         </div>
