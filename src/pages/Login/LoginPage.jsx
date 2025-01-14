@@ -128,7 +128,7 @@ export default function LoginPage() {
                     cursor: "pointer",
                     "&:hover": { color: "white" },
                   }}
-                  onClick={() => console.log("Navigate to forgot password")}
+                  onClick={() => navigate("/forgotpassword")}
                 >
                   Forgot password?
                 </Typography>
@@ -139,8 +139,9 @@ export default function LoginPage() {
                   disabled={isSubmitting}
                   sx={{
                     mt: 2,
-                    color: "white",
+                    color: "black",
                     py: 1,
+                    background: "#FFD100",
                   }}
                   onClick={() => {
                     handleLogin("email", values);
@@ -154,8 +155,9 @@ export default function LoginPage() {
                   startIcon={<GoogleIcon />}
                   sx={{
                     mt: 1,
-                    color: "white",
+                    color: "black",
                     py: 1,
+                    background: "#FFD100",
                   }}
                   onClick={() => {
                     handleLogin("google");
@@ -185,7 +187,7 @@ export default function LoginPage() {
                       },
                     },
                   }}
-                  onClick={() => navigate("/register")}
+                  onClick={() => navigate("/member/signup")}
                 >
                   Not in the society? <span>Create an Account</span>
                 </Typography>

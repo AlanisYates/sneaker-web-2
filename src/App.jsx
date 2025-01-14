@@ -8,13 +8,21 @@ import ErrorPage from "./pages/ErrorPage";
 import StripeSignupPage from "./pages/StripeSignUpPage/StripeSignupPage";
 import LoginPage from "./pages/Login/LoginPage";
 import { LogoutPage } from "./pages/Logout/LogoutPage";
-import SignupMember from "./pages/SignUpMemberPage/SignUpMemberPage";
+import SignupMember  from "./pages/SignUpMemberPage/SignUpMemberPage";
 import { ProtectedRoute } from "./components/PrivateRoute";
 import { ApolloProvider } from "@apollo/client";
 import { ApolloClient, InMemoryCache, createHttpLink } from "@apollo/client";
 import { setContext } from "@apollo/client/link/context";
 import { Dashboard } from "./pages/Dashboard/Dashboard";
 import { Blockers } from "./components/Blockers";
+import PaymentStatus from "./pages/PaymentStatus/PaymentStatus";
+import SignUpUser from "./pages/Signup User/SignupUser";
+import CheckYourEmail from "./pages/ForgotPassword/CheckYourEmail";
+import ForgotPassword from "./pages/ForgotPassword/ForgotPassword";
+import PasswordReset from "./pages/ForgotPassword/PasswordReset";
+import SetANewPassword from "./pages/ForgotPassword/SetANewPassword";
+import SuccessfulPage from "./pages/ForgotPassword/SuccessfulPage";
+import StripePage from "./pages/StripePage";
 
 function App() {
   // const { status } = useContext(AuthContext);
@@ -23,7 +31,6 @@ function App() {
   const httpLink = createHttpLink({
     uri: `${import.meta.env.VITE_API_URL}/graphql`,
   });
-  
 
   const authLink = setContext((_, { headers }) => {
     // get the authentication token from local storage if it exists
@@ -55,6 +62,30 @@ function App() {
                 <Route path="/logout" element={<LogoutPage />} />
                 <Route path="stripeOnboarding" element={<StripeSignupPage />} />
                 <Route
+                  path="/paymentSuccess/:contractId"
+                  element={<PaymentStatus success={true} />}
+                />
+                <Route
+                  path="/paymentFail/:contractId"
+                  element={<PaymentStatus success={false} />}
+                />
+                <Route path="/ForgotPassword" element={<ForgotPassword />} />
+                <Route path="/CheckYourEmail" element={<CheckYourEmail />} />
+                <Route path="/PasswordReset" element={<PasswordReset />} />
+                <Route path="/SetANewPassword" element={<SetANewPassword />} />
+                <Route path="/SuccessfulPage" element={<SuccessfulPage />} />
+                <Route
+                  path="/member/stripe"
+                  element={
+                    <ProtectedRoute>
+                      <StripePage />
+                    </ProtectedRoute>
+                  }
+                />
+            
+                <Route path="/paymentSuccess/:contractId" element={<PaymentStatus success={true} />} />
+                <Route path="/paymentFail/:contractId" element={<PaymentStatus success={false} />} />
+               <Route
                   path="/dashboard"
                   element={
                     <>
@@ -66,6 +97,7 @@ function App() {
                   }
                 />
                 <Route path="member/signup" element={<SignupMember />} />
+                <Route path="user/signup" element={<SignUpUser />} />
                 <Route
                   path="/signup"
                   element={
@@ -74,7 +106,6 @@ function App() {
                     </ProtectedRoute>
                   }
                 />
-
                 {/* Error Page Route */}
                 <Route path="*" element={<ErrorPage />} />
               </Routes>
