@@ -10,6 +10,7 @@ import { UserDashboard } from "./UserDashBoard";
 
 export const Dashboard = () => {
   const { user } = useUser();
+  // git add
   const { signOut } = useClerk();
 
   const { role } = user.unsafeMetadata;
