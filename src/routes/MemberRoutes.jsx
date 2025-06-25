@@ -1,20 +1,22 @@
 import React from "react";
 import { Routes, Route } from "react-router-dom";
-import { ChatDashboard } from "../pages/Chats/ChatDashboard";
 import { ContractReviewPage } from "../pages/ContractsPage/ContractReviewPage";
 import { ContractPage } from "../pages/ContractsPage/Contracts";
 import { Subscriptions } from "../pages/PaymentStatus/Subscriptions";
 import SuccessPage from "../pages/PaymentStatus/SubscriptionSuccess";
 import { MemberProvider } from "../context/MemberContext";
 import { MemberDashboard } from "../pages/Dashboard/MemberDashboard";
-import MemberSignupPage from "../pages/SignupPage/SignupPage";
 import Layout from "../components/Layout";
+import { ChatDashboardMember } from "../pages/Chats/ChatDashboardMember";
+import { GenerateMember } from "../pages/GenerateMember/GenerateMember";
+import { OnboardMember } from "../pages/OnboardMember/OnboardMember";
 
 const MemberRoutes = () => {
   return (
     <MemberProvider>
       <Routes>
-        <Route path="signup-info" element={<MemberSignupPage />} />
+        <Route path="generate" element={<GenerateMember />} />
+        <Route path="onboarding" element={<OnboardMember />} />
         <Route
           path="dashboard"
           element={
@@ -24,10 +26,10 @@ const MemberRoutes = () => {
           }
         />
         <Route
-          path="chats"
+          path="chats/:id"
           element={
             <Layout>
-              <ChatDashboard />
+              <ChatDashboardMember />
             </Layout>
           }
         />
