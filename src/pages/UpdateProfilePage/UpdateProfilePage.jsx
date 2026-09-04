@@ -44,6 +44,8 @@ const UpdateProfilePage = () => {
     lastName: Yup.string(),
     addressLineOne: Yup.string(),
     addressLineTwo: Yup.string(),
+    city: Yup.string(),
+    country: Yup.string(),
     zipcode: Yup.string(),
     state: Yup.string(),
     phoneNumber: Yup.string(),
@@ -58,6 +60,8 @@ const UpdateProfilePage = () => {
             lastName: values.lastName,
             addressLineOne: values.addressLineOne,
             addressLineTwo: values.addressLineTwo,
+            city: values.city,
+            country: values.country || "US",
             zipcode: values.zipcode,
             state: values.state,
             phoneNumber: values.phoneNumber,
@@ -141,6 +145,8 @@ const UpdateProfilePage = () => {
               currentMemberData?.currentMember?.addressLineOne || "",
             addressLineTwo:
               currentMemberData?.currentMember?.addressLineTwo || "",
+            city: currentMemberData?.currentMember?.city || "",
+            country: currentMemberData?.currentMember?.country || "US",
             zipcode: currentMemberData?.currentMember?.zipcode || "",
             state: currentMemberData?.currentMember?.state || "",
             phoneNumber: currentMemberData?.currentMember?.phoneNumber || "",
@@ -207,6 +213,23 @@ const UpdateProfilePage = () => {
                     label="State"
                     variant="outlined"
                     fullWidth
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <FormikTextField
+                    name="city"
+                    label="City"
+                    variant="outlined"
+                    fullWidth
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <FormikTextField
+                    name="country"
+                    label="Country"
+                    variant="outlined"
+                    fullWidth
+                    helperText="US by default"
                   />
                 </Grid>
                 <Grid item xs={12}>

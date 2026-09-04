@@ -1,21 +1,44 @@
 import React, { useState } from "react";
 import { Formik, Form, useField } from "formik";
+import * as Yup from "yup";
 import {
-  Button,
-  Typography,
-  Grid,
-  TextField,
-  Container,
-  Alert,
   Box,
+  TextField,
+  Typography,
+  Button,
+  CircularProgress,
+  Container,
+  Grid,
+  Alert,
 } from "@mui/material";
-import { useMutation } from "@apollo/client";
-import { UPDATE_MEMBER } from "./signup";
-import { useUser } from "@clerk/clerk-react";
+import { gql, useQuery, useMutation } from "@apollo/client";
+
+const CURRENT_USER_PROFILE = gql`
+  query CurrentUserProfile {
+    currentUser {
+      id
+      email
+      firstName
+      lastName
+      addressLineOne
+      addressLineTwo
+      city
+      country
+      zipcode
+      state
+      phoneNumber
+    }
+  }
+`;
+
+const UPDATE_USER_PROFILE = gql`
+  mutation UpdateUserProfile($data: UpdateUserInput!) {
+    updateUser(data: $data)
+  }
+`;
 
 const FormikTextField = ({ name, ...props }) => {
   const [field, meta] = useField(name);
-
   const isError = meta.touched && meta.error;
 
   return (
@@ -28,28 +51,36 @@ const FormikTextField = ({ name, ...props }) => {
   );
 };
 
-const MemberSignupPage = ({ onComplete }) => {
-  const { user } = useUser();
-  const [updateMember, { loading }] = useMutation(UPDATE_MEMBER, {
-    onCompleted: () => {
-      onComplete();
-    },
+/**
+ * Client-side counterpart to the member UpdateProfilePage (which queries
+ * currentMember). Users previously landed on the member form and ate
+ * role-guard errors.
+ */
+const UserUpdateProfilePage = () => {
+  const { data, loading, error, refetch } = useQuery(CURRENT_USER_PROFILE, {
+    fetchPolicy: "network-only",
+  });
+  const [updateUser] = useMutation(UPDATE_USER_PROFILE);
+  const [errorMessage, setErrorMessage] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
+
+  const validationSchema = Yup.object({
+    firstName: Yup.string(),
+    lastName: Yup.string(),
+    addressLineOne: Yup.string(),
+    addressLineTwo: Yup.string(),
+    city: Yup.string(),
+    country: Yup.string(),
+    zipcode: Yup.string(),
+    state: Yup.string(),
+    phoneNumber: Yup.string(),
   });
 
-  const handleSubmit = async (values) => {
+  const handleSubmit = async (values, { setSubmitting }) => {
     try {
-      // Never provision a row for a role-less identity: without a Clerk
-      // role the backend context cannot authorize anything afterwards.
-      const clerkRole =
-        user?.publicMetadata?.role ?? user?.unsafeMetadata?.role;
-      if (!clerkRole) {
-        setErrorMessage("Signup incomplete (missing role). Please sign up again.");
-        return;
-      }
-      await updateMember({
+      const { data: result } = await updateUser({
         variables: {
           data: {
-            businessName: values.businessName,
             firstName: values.firstName,
             lastName: values.lastName,
             addressLineOne: values.addressLineOne,
@@ -62,16 +93,34 @@ const MemberSignupPage = ({ onComplete }) => {
           },
         },
       });
-    } catch (error) {
-      setErrorMessage(error.message);
+
+      if (result.updateUser) {
+        setSuccessMessage("Profile updated successfully");
+        setErrorMessage(null);
+        refetch();
+      } else {
+        throw new Error("Failed to update profile");
+      }
+    } catch (err) {
+      setErrorMessage(err.message);
+      setSuccessMessage(null);
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const [errorMessage, setErrorMessage] = useState("");
-
   if (loading) {
-    return <>loading</>;
+    return <CircularProgress />;
   }
+  if (error) {
+    return (
+      <Alert severity="error">
+        Error loading profile data. Please try again later.
+      </Alert>
+    );
+  }
+
+  const profile = data?.currentUser;
 
   return (
     <Container
@@ -96,64 +145,47 @@ const MemberSignupPage = ({ onComplete }) => {
             fontWeight: "bold",
           }}
         >
-          Contact Info
+          Update Profile
         </Typography>
-        <Typography variant="p" mb={4}>
-          Lets gather some information about you!
+        <Typography variant="body2" color="text.secondary" mb={3}>
+          Street, city, and zip are required for shipping labels.
         </Typography>
+        {errorMessage && (
+          <Alert severity="error" sx={{ width: "100%", marginBottom: 2 }}>
+            {errorMessage}
+          </Alert>
+        )}
+        {successMessage && (
+          <Alert severity="success" sx={{ width: "100%", marginBottom: 2 }}>
+            {successMessage}
+          </Alert>
+        )}
         <Formik
           initialValues={{
-            email: user.emailAddresses || "",
-            businessName: "",
-            firstName: "",
-            lastName: "",
-            addressLineOne: "",
-            addressLineTwo: "",
-            city: "",
-            country: "US",
-            zipcode: "",
-            state: "",
-            phoneNumber: "",
+            email: profile?.email || "",
+            firstName: profile?.firstName || "",
+            lastName: profile?.lastName || "",
+            addressLineOne: profile?.addressLineOne || "",
+            addressLineTwo: profile?.addressLineTwo || "",
+            city: profile?.city || "",
+            country: profile?.country || "US",
+            zipcode: profile?.zipcode || "",
+            state: profile?.state || "",
+            phoneNumber: profile?.phoneNumber || "",
           }}
+          validationSchema={validationSchema}
           onSubmit={handleSubmit}
-          validate={(values) => {
-            const errors = {};
-
-            if (!values.firstName) {
-              errors.firstName = "First Name is required";
-            }
-
-            if (!values.lastName) {
-              errors.lastName = "Last Name is required";
-            }
-
-            if (!values.zipcode) {
-              errors.zipcode = "Zipcode is required";
-            }
-
-            if (!values.city) {
-              errors.city = "City is required for shipping labels";
-            }
-
-            return errors;
-          }}
+          enableReinitialize
         >
-          {() => (
+          {({ isSubmitting }) => (
             <Form>
               <Grid container spacing={2}>
                 <Grid item xs={12}>
                   <FormikTextField
                     name="email"
+                    label="Email"
                     variant="outlined"
                     disabled
-                    fullWidth
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <FormikTextField
-                    name="businessName"
-                    label="Business Name (optional)"
-                    variant="outlined"
                     fullWidth
                   />
                 </Grid>
@@ -165,7 +197,6 @@ const MemberSignupPage = ({ onComplete }) => {
                     fullWidth
                   />
                 </Grid>
-
                 <Grid item xs={12} sm={6}>
                   <FormikTextField
                     name="lastName"
@@ -192,22 +223,6 @@ const MemberSignupPage = ({ onComplete }) => {
                 </Grid>
                 <Grid item xs={12} sm={6}>
                   <FormikTextField
-                    name="zipcode"
-                    label="Zipcode"
-                    variant="outlined"
-                    fullWidth
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <FormikTextField
-                    name="state"
-                    label="State"
-                    variant="outlined"
-                    fullWidth
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <FormikTextField
                     name="city"
                     label="City"
                     variant="outlined"
@@ -223,6 +238,22 @@ const MemberSignupPage = ({ onComplete }) => {
                     helperText="US by default"
                   />
                 </Grid>
+                <Grid item xs={12} sm={6}>
+                  <FormikTextField
+                    name="zipcode"
+                    label="Zipcode"
+                    variant="outlined"
+                    fullWidth
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <FormikTextField
+                    name="state"
+                    label="State"
+                    variant="outlined"
+                    fullWidth
+                  />
+                </Grid>
                 <Grid item xs={12}>
                   <FormikTextField
                     name="phoneNumber"
@@ -236,25 +267,18 @@ const MemberSignupPage = ({ onComplete }) => {
                 <Button
                   type="submit"
                   variant="contained"
-                  sx={{
-                    color: "black",
-                    backgroundColor: "gold",
-                  }}
+                  disabled={isSubmitting}
+                  sx={{ color: "black", backgroundColor: "gold" }}
                 >
-                  Submit
+                  {isSubmitting ? "Saving…" : "Save"}
                 </Button>
               </Box>
             </Form>
           )}
         </Formik>
-        {errorMessage ? (
-          <Alert severity="error" color="error">
-            {errorMessage}
-          </Alert>
-        ) : null}
       </div>
     </Container>
   );
 };
 
-export default MemberSignupPage;
+export default UserUpdateProfilePage;
