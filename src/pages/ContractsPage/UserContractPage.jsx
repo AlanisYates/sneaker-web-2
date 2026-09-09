@@ -9,6 +9,13 @@ import { GET_CONTRACT_BY_ORDER_REF } from "../../context/graphql/getContractDeta
 import { useColors } from "../../theme/colors";
 import { STATUS_UI_CONFIG } from "../../utils/statusConfig";
 import ImagePreviewDialog from "../../components/ImagePreviewDialog";
+import CancelContractModal from "../../components/CancelContractModal";
+import EvidenceStrip from "../../components/EvidenceStrip";
+import PackagingPhotoCard from "../../components/PackagingPhotoCard";
+import ReportIssueEntry, { FreezeBanner, isFrozen } from "../../components/FlagIssue";
+import UnderReviewModal from "../../components/UnderReviewModal";
+import CompletedModal from "../../components/CompletedModal";
+import DeliveredReviewActions from "../../components/DeliveredReviewActions";
 
 const money = (n) =>
   `$${(Number(n) || 0).toLocaleString("en-US", {
@@ -28,6 +35,8 @@ const UserContractPage = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [previewUrl, setPreviewUrl] = useState(null);
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [labelFlowOpen, setLabelFlowOpen] = useState(false);
   // Labels are bought asynchronously after the Stripe webhook lands, so a
   // fresh payment briefly has no labelUrl. Poll until it appears, then
   // stop. Unpaid contracts never poll.
@@ -81,6 +90,18 @@ const UserContractPage = () => {
   }
 
   const contract = data.contractById;
+  // Inbound label is actionable only at READY_TO_SHIP (print → drop off).
+  // Past carrier scan it's spent — the button becomes a "See Tracking" jump
+  // to the record instead of inviting a reprint-and-reship mess.
+  const labelLive =
+    !!contract.inboundLabelUrl &&
+    contract.status === "READY_TO_SHIP" &&
+    !isFrozen(contract);
+  const usedLabel =
+    !!contract.inboundLabelUrl &&
+    contract.status !== "READY_TO_SHIP" &&
+    contract.status !== "CANCELED";
+  const labelClickable = labelLive || usedLabel;
   const shoeLabel = [contract.shoeDetails?.brand, contract.shoeDetails?.model]
     .filter(Boolean)
     .join(" ");
@@ -89,9 +110,12 @@ const UserContractPage = () => {
     .join(" ");
   const statusCfg = STATUS_UI_CONFIG[contract.status] ?? { label: contract.status, color: colors.textSecondary };
   const servicePrice = contract.price ?? contract.proposedPrice ?? 0;
-  const total = servicePrice + (contract.shippingFee || 0) + (contract.insuranceFee || 0);
+  const total = servicePrice + (contract.shippingFee || 0) + (contract.insuranceFee || 0) + (contract.taxFee || 0);
   const canReview =
     contract.status === "PRICE_PROPOSED" || contract.status === "AWAITING_PAYMENT";
+  const canCancel = ["PENDING_REVIEW", "PRICE_PROPOSED", "AWAITING_PAYMENT", "READY_TO_SHIP"].includes(
+    contract.status
+  );
 
   const tracking = [
     { leg: "Inbound label", ...contract.inboundTracking },
@@ -100,6 +124,14 @@ const UserContractPage = () => {
 
   const leftContent = (
     <Box>
+      {contract.status === "CANCELED" && (
+        <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
+          This contract has been canceled.
+        </Alert>
+      )}
+      {isFrozen(contract) && <FreezeBanner role="client" />}
+      {isFrozen(contract) && <UnderReviewModal contract={contract} role="client" />}
+      {contract.status === "COMPLETED" && <CompletedModal contract={contract} role="client" />}
       <Paper variant="outlined" sx={{ p: 3, mb: 4, textAlign: "center" }}>
         <Box
           sx={{
@@ -128,6 +160,8 @@ const UserContractPage = () => {
           {contract.orderRef && ` · Order ${contract.orderRef}`}
         </Typography>
       </Paper>
+
+      <DeliveredReviewActions contract={contract} />
 
       {canReview && (
         <Paper variant="outlined" sx={{ p: { xs: 3, md: 4 }, mb: 3, display: "flex", flexDirection: "column", alignItems: "center", bgcolor: "#FFD10011", borderColor: "#FFD100", borderRadius: 2 }}>
@@ -166,10 +200,21 @@ const UserContractPage = () => {
                 <Typography variant="body2" color="text.secondary">Shipping (Round Trip)</Typography>
                 <Typography variant="body2" fontWeight={600}>{money(contract.shippingFee || 0)}</Typography>
               </Box>
-              {contract.insuranceFee > 0 && (
+              {contract.insuranceFee > 0 ? (
                 <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
                   <Typography variant="body2" color="text.secondary">Shipping Insurance</Typography>
                   <Typography variant="body2" fontWeight={600}>{money(contract.insuranceFee)}</Typography>
+                </Box>
+              ) : !contract.insuranceDeclined && (
+                <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                  <Typography variant="body2" color="text.secondary">Package Protection</Typography>
+                  <Typography variant="body2" fontWeight={600} color="success.main">Included (On Us)</Typography>
+                </Box>
+              )}
+              {contract.taxFee > 0 && (
+                <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                  <Typography variant="body2" color="text.secondary">Sales Tax</Typography>
+                  <Typography variant="body2" fontWeight={600}>{money(contract.taxFee)}</Typography>
                 </Box>
               )}
               <Divider sx={{ my: 1.5 }} />
@@ -306,44 +351,7 @@ const UserContractPage = () => {
           </Accordion>
         )}
 
-      {(contract.unboxingPhotos?.length > 0 || contract.completionPhotos?.length > 0) && (
-        <Accordion variant="outlined" sx={{ mb: 2 }}>
-          <AccordionSummary expandIcon={<FiChevronDown />}>
-            <Typography variant="h6" fontWeight={600}>
-              Restorer photos
-            </Typography>
-          </AccordionSummary>
-          <AccordionDetails>
-          {[
-            { label: "Unboxing", photos: contract.unboxingPhotos },
-            { label: "Finished work", photos: contract.completionPhotos },
-          ].map(
-            ({ label, photos }) =>
-              photos?.length > 0 && (
-                <Box key={label} sx={{ mb: 1.5 }}>
-                  <Typography variant="body1" color="text.secondary" fontWeight={600} sx={{ mb: 1 }}>
-                    {label}
-                  </Typography>
-                  <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 0.5 }}>
-                    {photos.map((url, idx) => (
-                      <Card key={idx} sx={{ width: 160, position: "relative" }}>
-                        <CardMedia component="img" height="120" image={url} alt={`${label} ${idx + 1}`} sx={{ objectFit: "cover" }} />
-                        <IconButton
-                          onClick={() => setPreviewUrl(url)}
-                          size="small"
-                          sx={{ position: "absolute", top: 4, left: 4, bgcolor: "rgba(0,0,0,0.45)", color: "common.white" }}
-                        >
-                          <FiZoomIn size={14} />
-                        </IconButton>
-                      </Card>
-                    ))}
-                  </Box>
-                </Box>
-              )
-          )}
-            </AccordionDetails>
-          </Accordion>
-      )}
+      <EvidenceStrip contract={contract} onPreview={setPreviewUrl} />
     </Box>
   );
 
@@ -399,7 +407,7 @@ const UserContractPage = () => {
         </Paper>
       )}
 
-      <Paper variant="outlined" sx={{ p: 3, mb: 3, opacity: canReview ? 0.6 : 1 }}>
+      <Paper id="tracking-section" variant="outlined" sx={{ p: 3, mb: 3, opacity: canReview ? 0.6 : 1, scrollMarginTop: 16 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
           <FiPackage size={18} color={canReview ? "gray" : "black"} />
           <Typography variant="h6" fontWeight={600} color={canReview ? "text.secondary" : "text.primary"}>Tracking</Typography>
@@ -433,33 +441,64 @@ const UserContractPage = () => {
           <Button
             variant="contained"
             fullWidth
-            disabled={!contract.inboundLabelUrl}
+            disabled={!labelClickable}
             startIcon={
-              contract.inboundLabelUrl ? <FiPrinter size={18} /> : 
-              (needsLabelPoll ? <CircularProgress size={16} color="inherit" /> : <FiPrinter size={18} />)
+              needsLabelPoll && !contract.inboundLabelUrl ? (
+                <CircularProgress size={16} color="inherit" />
+              ) : (
+                <FiPrinter size={18} />
+              )
             }
-            onClick={() => contract.inboundLabelUrl && window.open(contract.inboundLabelUrl, "_blank", "noopener")}
+            onClick={() => {
+              // Guided label flow: print first, then an optional packaging-photo
+              // nudge (photos of the labeled box are the evidence that counts).
+              if (labelLive) {
+                setLabelFlowOpen(true);
+              } else if (usedLabel) {
+                // Spent label: jump to the tracking record instead of reprinting.
+                document.getElementById("tracking-section")?.scrollIntoView({ behavior: "smooth" });
+              }
+            }}
             sx={{
               py: 1.25,
-              bgcolor: contract.inboundLabelUrl ? "#FFD100" : "action.disabledBackground",
-              color: contract.inboundLabelUrl ? "#000" : "text.disabled",
+              bgcolor:
+                labelClickable
+                  ? "#FFD100"
+                  : "action.disabledBackground",
+              color:
+                labelClickable
+                  ? "#000"
+                  : "text.disabled",
               fontWeight: 700,
               textTransform: "none",
               fontSize: "1rem",
-              "&:hover": { bgcolor: contract.inboundLabelUrl ? "#E6BC00" : undefined },
+              "&:hover": {
+                bgcolor:
+                  labelClickable
+                    ? "#E6BC00"
+                    : undefined,
+              },
             }}
           >
-            {contract.inboundLabelUrl 
-              ? "Print Shipping Label" 
+            {contract.status === "CANCELED"
+              ? "Contract Canceled"
+              : isFrozen(contract)
+              ? "Paused During Review"
+              : contract.inboundLabelUrl
+              ? usedLabel
+                ? "See Tracking"
+                : "Print Shipping Label"
               : (needsLabelPoll ? "Processing Label..." : "Label Unavailable")}
           </Button>
-          {!contract.inboundLabelUrl && needsLabelPoll && (
+          {contract.status !== "CANCELED" && !contract.inboundLabelUrl && needsLabelPoll && (
             <Typography variant="caption" color="text.secondary" sx={{ display: "block", textAlign: "center", mt: 1 }}>
               Usually takes under a minute. This page will automatically refresh.
             </Typography>
           )}
         </Box>
       </Paper>
+
+      <PackagingPhotoCard contract={contract} open={labelFlowOpen} onClose={() => setLabelFlowOpen(false)} />
 
       <Paper variant="outlined" sx={{ p: 3, mb: 3 }}>
         <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
@@ -487,6 +526,24 @@ const UserContractPage = () => {
           support@thesneakersociety.com
         </Button>
       </Paper>
+
+      {contract.status !== "DELIVERED_TO_USER" && <ReportIssueEntry contract={contract} />}
+
+      {canCancel && (
+        <Box sx={{ mt: 1, mb: 3, textAlign: "center" }}>
+          <Button
+            variant="text"
+            color="error"
+            size="small"
+            onClick={() => setCancelModalOpen(true)}
+            sx={{ textTransform: "none", fontWeight: 600, fontSize: "0.85rem" }}
+          >
+            {contract.status === "READY_TO_SHIP"
+              ? "Cancel Contract (Label fees non-refundable)"
+              : "Cancel Contract Request"}
+          </Button>
+        </Box>
+      )}
     </Box>
   );
 
@@ -509,6 +566,13 @@ const UserContractPage = () => {
           </Box>
         </Box>
       )}
+
+      <CancelContractModal
+        open={cancelModalOpen}
+        onClose={() => setCancelModalOpen(false)}
+        contract={contract}
+        userRole="client"
+      />
 
       <ImagePreviewDialog
         open={!!previewUrl}
